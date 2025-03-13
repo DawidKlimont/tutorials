@@ -53,6 +53,10 @@ def run(cfg: ModulusConfig):
         nr_layers = 4,
     )
 
+    x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
+    equation = HeatPDE(alpha, beta)
+    nodes = equation.make_nodes() + [u_net.make_node("u_network")]
+
     boundary_condition = PointwiseBoundaryConstraint(
         nodes = nodes,
         geometry = geometry,
@@ -69,15 +73,12 @@ def run(cfg: ModulusConfig):
         parameterization = {t: 0.0}
     )
 
-
+    domain = Domain()
     domain.add_constraint(initial_condition)
     domain.add_constraint(boundary_condition)
     solver = Solver(cfg=cfg, domain=domain)
     solver.solve()
     
-    x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
-    equation = HeatPDE(alpha, beta)
-    nodes = equation.make_nodes() + [u_net.make_node("u_network")]
 
 
     coupled_boundary_expression = []
@@ -115,7 +116,8 @@ f_N_function = interpolate(Expression("2", degree=0), W)
 coupling_boundary = StraightBoundary()
 
 precice = Adapter(adapter_config_filename="precice-adapter-config.json")
-precice.initialize(coupling_boundary, read_function_space=V, write_object=f_N_function) #Needs to be done before the>coupling_expression = precice.create_coupling_expression()
+precice.initialize(coupling_boundary, read_function_space=V, write_object=f_N_function) #Needs to be done before run() since decorator changes location?
+coupling_expression = precice.create_coupling_expression()
 
 print("Starting")
 run()
