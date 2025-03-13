@@ -1,0 +1,15 @@
+# Default Modulus configuration
+defaults:
+  - modulus_default
+  - scheduler: tf_exponential_lr
+  - optimizer: adam
+  - loss: sum
+  - _self_
+
+scheduler:
+  decay_rate: 0.95
+  decay_steps: 4_000
+
+training:
+  rec_results_freq : 1_000
+  max_steps : 5_000
