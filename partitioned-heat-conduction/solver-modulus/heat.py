@@ -35,7 +35,7 @@ while precice.is_coupling_ongoing():
 
     precice.write_data(f_N_function)#Placeholder later actual function derived from pointvalues in modulusmodel
     precice.advance(dt)
-    #TOD write actual model data
+    #TODO write actual model data
 
     
     if precice.requires_reading_checkpoint():
