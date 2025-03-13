@@ -27,7 +27,7 @@ n = 0
 
 while precice.is_coupling_ongoing():
     if precice.requires_writing_checkpoint():
-        precice.store_checkpoint(None, t, n)
+        precice.store_checkpoint(f_N_function, t, n)
 
     read_data = precice.read_data(dt)
     precice.update_coupling_expression(coupling_expression, read_data)
