@@ -23,18 +23,25 @@ dt = 0.1
 t = 0.0
 n = 0
 
+#TODO init model and initial training
+
 while precice.is_coupling_ongoing():
     if precice.requires_writing_checkpoint():
         precice.store_checkpoint(None, t, n)
 
     read_data = precice.read_data(dt)
     precice.update_coupling_expression(coupling_expression, read_data)
-    precice.write_data(f_N_function)
+    #TODO store expressions
+
+    precice.write_data(f_N_function)#Placeholder later actual function derived from pointvalues in modulusmodel
     precice.advance(dt)
+    #TOD write actual model data
 
     
     if precice.requires_reading_checkpoint():
+        #TODO train model
         _, t, n = precice.retrieve_checkpoint()
+
     else:
         t += dt
         n += 1
