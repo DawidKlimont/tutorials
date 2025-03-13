@@ -11,5 +11,5 @@ scheduler:
   decay_steps: 4_000
 
 training:
-  rec_results_freq : 1_000
-  max_steps : 5_000
+  rec_results_freq : 100
+  max_steps : 500

@@ -52,6 +52,28 @@ def run(cfg: ModulusConfig):
         layer_size = 128,
         nr_layers = 4,
     )
+
+    boundary_condition = PointwiseBoundaryConstraint(
+        nodes = nodes,
+        geometry = geometry,
+        outvar = {"u": ((1+x*x+y*y*alpha)/10)},
+        batch_size = 1_000,
+        parameterization={t: 0.0},
+    )
+
+    initial_condition = PointwiseInteriorConstraint(
+        nodes = nodes,
+        geometry = geometry,
+        outvar = {"u": ((1+x*x+y*y*alpha)/10)},
+        batch_size = 1_000,
+        parameterization = {t: 0.0}
+    )
+
+
+    domain.add_constraint(initial_condition)
+    domain.add_constraint(boundary_condition)
+    solver = Solver(cfg=cfg, domain=domain)
+    solver.solve()
     
     x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
     equation = HeatPDE(alpha, beta)
