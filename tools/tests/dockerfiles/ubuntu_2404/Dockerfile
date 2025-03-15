@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS base_image
+FROM ubuntu:24.04 AS base_image
 USER root
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
@@ -42,8 +42,6 @@ RUN apt-get -qq update && \
         pkg-config \
         wget
 USER precice
-RUN python3 -m pip install --user --upgrade pip
-
 
 FROM precice_dependecies AS precice
 # Install & build precice into /home/precice/precice
@@ -84,8 +82,10 @@ USER precice
 WORKDIR /home/precice
 # Builds the precice python bindings for python3
 # Installs also matplotlib as its needed for the elastic-tube 1d fluid-python participant.
-RUN pip3 install --user git+https://github.com/precice/python-bindings.git@${PYTHON_BINDINGS_REF} && \
-    pip3 install --user matplotlib 
+RUN python3 -m venv /home/precice/venv && \
+    . /home/precice/venv/bin/activate && \
+    pip3 install git+https://github.com/precice/python-bindings.git@${PYTHON_BINDINGS_REF} && \
+    pip3 install matplotlib 
 
 FROM precice_dependecies AS fenics_adapter
 COPY --from=python_bindings /home/precice/.local /home/precice/.local
@@ -96,14 +96,18 @@ RUN add-apt-repository -y ppa:fenics-packages/fenics && \
 USER precice
 ARG FENICS_ADAPTER_REF
 # Building fenics-adapter
-RUN pip3 install --user git+https://github.com/precice/fenics-adapter.git@${FENICS_ADAPTER_REF}
+RUN python3 -m venv /home/precice/venv && \
+    . /home/precice/venv/bin/activate && \
+    pip3 install git+https://github.com/precice/fenics-adapter.git@${FENICS_ADAPTER_REF}
 
 
 FROM precice_dependecies AS nutils_adapter
 COPY --from=python_bindings /home/precice/.local /home/precice/.local
 USER precice
 # Installing nutils - There is no adapter
-RUN pip3 install --user nutils
+RUN python3 -m venv /home/precice/venv && \
+    . /home/precice/venv/bin/activate && \
+    pip3 install nutils
 
 
 FROM precice_dependecies AS calculix_adapter
@@ -131,16 +135,18 @@ FROM python_bindings AS su2_adapter
 COPY --from=precice /home/precice/.local /home/precice/.local
 USER root
 RUN apt-get -qq update && \
-    apt-get -qq install swig
+    apt-get -qq install swig python3-mpi4py python3-setuptools
 ARG SU2_VERSION
 USER precice
 
 # Download and build SU2 (We could also use pre-built binaries from the SU2 releases)
+# The sed command applies a patch needed for Ubuntu 24.04.
 WORKDIR /home/precice
 RUN wget https://github.com/su2code/SU2/archive/refs/tags/v${SU2_VERSION}.tar.gz && \
     tar xvzf v${SU2_VERSION}.tar.gz && \
     rm -fv v${SU2_VERSION}.tar.gz
-RUN pip3 install --user mpi4py
+RUN python3 -m venv /home/precice/venv && \
+    . /home/precice/venv/bin/activate
 ARG SU2_ADAPTER_REF
 WORKDIR /home/precice
 ENV SU2_RUN="/home/precice/SU2_RUN" 
@@ -152,5 +158,6 @@ RUN git clone https://github.com/precice/su2-adapter.git && \
     git checkout ${SU2_ADAPTER_REF} &&\
     ./su2AdapterInstall
 RUN cd "${SU2_HOME}" &&\
+    sed -i '1s/^/#include <cstdint>\n/' SU2_CFD/src/output/filewriter/CParaviewXMLFileWriter.cpp &&\
     ./meson.py build -Denable-pywrapper=true --prefix=$SU2_RUN &&\
     ./ninja -C build install
