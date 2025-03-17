@@ -35,7 +35,7 @@ class HeatPDE(PDE):
                 self.equations["heat_equation"] = u.diff(t) - (u.diff(x,2)+u.diff(y,2)) - (beta-2-2*alpha)/10
                 self.equations["flux_x"] = u.diff(x) - u_x       
 
-def train_model(model, cfg, end_time, alpha, beta):
+def train_model(model, cfg, end_time, coupled_boundary_expressions, alpha, beta):
     time_range = {0.0, end_time}
     tolerance = 1e-5
     x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
@@ -69,6 +69,8 @@ def train_model(model, cfg, end_time, alpha, beta):
         parameterization=time_range,
     )
 
+    #TODO add coupling boundary condition
+
     domain = Domain()
     domain.add_constraint(initial_condition)
     domain.add_constraint(interior_constraint)
@@ -87,6 +89,7 @@ def run(cfg: ModulusConfig):
     n = 0
     alpha = 3
     beta = 1.2
+    coupled_boundary_expressions = []
 
     #init model and initial training
     u_net = FullyConnectedArch(
@@ -95,9 +98,8 @@ def run(cfg: ModulusConfig):
         layer_size = 128,
         nr_layers = 4,
     )
-    train_model(u_net, cfg, 0.0, alpha, beta)
+    train_model(u_net, cfg, 0.0, coupled_boundary_expressions, alpha, beta)
     
-    coupled_boundary_expressions = []
     while precice.is_coupling_ongoing():
         if precice.requires_writing_checkpoint():
             precice.store_checkpoint(f_N_function, t_coupling, n)
