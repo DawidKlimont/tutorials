@@ -41,11 +41,15 @@ class Modulus_Helper():
         self.beta = beta
 
         self.cfg = cfg
+        self.steps_per_iter = self.cfg.training.max_steps
+        self.cfg.training.max_steps = 0
+
         self.model = model
         self.geometry = Rectangle((0,0),(1,1))
         self.nodes = HeatPDE(alpha, beta).make_nodes() + [model.make_node("u_network")]
 
     def train_model(self, end_time, coupled_boundary_expressions):
+        self.cfg.training.max_steps+=self.steps_per_iter
         tolerance = 1e-5
         x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
         time_range = {t: (0.0, end_time)}
@@ -75,12 +79,25 @@ class Modulus_Helper():
             parameterization=time_range,
         )
 
-        #TODO add coupling boundary condition
+        coupled_constraints = []
+        for t, expression in coupled_boundary_expressions:
+            coupled_constraints.append(
+                PointwiseBoundaryConstraint(
+                    nodes = self.nodes,
+                    geometry = self.geometry,
+                    outvar = {"u": lambda x,y,t: expression(x,y,t)/10},
+                    batch_size = 100,
+                    criteria=x>1.0-tolerance,
+                    parameterization={t: t},
+                )
+            )
 
         domain = Domain()
         domain.add_constraint(initial_condition)
         domain.add_constraint(interior_constraint)
         domain.add_constraint(boundary_condition)
+        for constraint in coupled_constraints:
+            domain.add_constraint(constraint)
 
         solver = Solver(cfg=self.cfg, domain=domain)
         solver.solve()

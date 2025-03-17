@@ -7,9 +7,10 @@ defaults:
   - _self_
 
 scheduler:
-  decay_rate: 0.95
-  decay_steps: 4_000
+  decay_rate: 0.95 # reduces learning rate after every multiple of decay steps by this to converge
+  decay_steps: 10_000
 
 training:
   rec_results_freq : 100
-  max_steps : 500
+  max_steps : 1_000 # count of training steps we will use per time frame iteration
+  save_network_freq : 1_000 # saving should be done after every time frame -> should equal max steps to save at the end of every timeframe
