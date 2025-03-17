@@ -80,15 +80,15 @@ class Modulus_Helper():
         )
 
         coupled_constraints = []
-        for t, expression in coupled_boundary_expressions:
+        for t_expr, expression in coupled_boundary_expressions:
             coupled_constraints.append(
                 PointwiseBoundaryConstraint(
                     nodes = self.nodes,
                     geometry = self.geometry,
-                    outvar = {"u": lambda x,y,t: expression(x,y,t)/10},
+                    outvar = {"u": lambda x,y,t: expression(x,y)/10},
                     batch_size = 100,
                     criteria=x>1.0-tolerance,
-                    parameterization={t: t},
+                    parameterization={t: t_expr},
                 )
             )
 
