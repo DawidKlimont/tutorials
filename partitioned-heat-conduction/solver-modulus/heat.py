@@ -35,35 +35,14 @@ class HeatPDE(PDE):
                 self.equations["heat_equation"] = u.diff(t) - (u.diff(x,2)+u.diff(y,2)) - (beta-2-2*alpha)/10
                 self.equations["flux_x"] = u.diff(x) - u_x       
 
-@modulus.sym.main(config_path="conf", config_name="config")
-def run(cfg: ModulusConfig):
-
-    dt = 0.1
-    t_coupling = 0.0
-    n = 0
-    alpha = 3
-    beta = 1.2
-
-    #TODO init model and initial training
-    geometry = Rectangle((0,0),(1,1))
-    u_net = FullyConnectedArch(
-        input_keys = [Key("x"), Key("y"), Key("t")],
-        output_keys = [Key("u"), Key("u_x")],
-        layer_size = 128,
-        nr_layers = 4,
-    )
-
+def train_model(model, cfg, end_time, alpha, beta):
+    time_range = {0.0, end_time}
+    tolerance = 1e-5
     x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
-    equation = HeatPDE(alpha, beta)
-    nodes = equation.make_nodes() + [u_net.make_node("u_network")]
 
-    boundary_condition = PointwiseBoundaryConstraint(
-        nodes = nodes,
-        geometry = geometry,
-        outvar = {"u": ((1+x*x+y*y*alpha)/10)},
-        batch_size = 1_000,
-        parameterization={t: 0.0},
-    )
+    geometry = Rectangle((0,0),(1,1))
+    equation = HeatPDE(alpha, beta)
+    nodes = equation.make_nodes() + [model.make_node("u_network")]
 
     initial_condition = PointwiseInteriorConstraint(
         nodes = nodes,
@@ -73,22 +52,59 @@ def run(cfg: ModulusConfig):
         parameterization = {t: 0.0}
     )
 
+    interior_constraint = PointwiseInteriorConstraint(
+        nodes = nodes,
+        geometry = geometry,
+        outvar = {"custom_equation": 0, "custom_gradient_x": 0},
+        batch_size = 5_000,
+        parameterization=time_range
+    )
+
+    boundary_condition = PointwiseBoundaryConstraint(
+        nodes = nodes,
+        geometry = geometry,
+        outvar = {"u": ((1+x*x+y*y*alpha)/10)},
+        batch_size = 1_000,
+        criteria=x<1.0-tolerance,
+        parameterization=time_range,
+    )
+
     domain = Domain()
     domain.add_constraint(initial_condition)
+    domain.add_constraint(interior_constraint)
     domain.add_constraint(boundary_condition)
+
     solver = Solver(cfg=cfg, domain=domain)
     solver.solve()
+
+
+
+@modulus.sym.main(config_path="conf", config_name="config")
+def run(cfg: ModulusConfig):
+
+    dt = 0.1
+    t_coupling = 0.0
+    n = 0
+    alpha = 3
+    beta = 1.2
+
+    #init model and initial training
+    u_net = FullyConnectedArch(
+        input_keys = [Key("x"), Key("y"), Key("t")],
+        output_keys = [Key("u"), Key("u_x")],
+        layer_size = 128,
+        nr_layers = 4,
+    )
+    train_model(u_net, cfg, 0.0, alpha, beta)
     
-
-
-    coupled_boundary_expression = []
+    coupled_boundary_expressions = []
     while precice.is_coupling_ongoing():
         if precice.requires_writing_checkpoint():
             precice.store_checkpoint(f_N_function, t_coupling, n)
 
         read_data = precice.read_data(dt)
         precice.update_coupling_expression(coupling_expression, read_data)
-        coupled_boundary_expression.append( (t_coupling+dt, vectorize(coupling_expression)) )
+        coupled_boundary_expressions.append( (t_coupling+dt, vectorize(coupling_expression)) )
 
 
         precice.write_data(f_N_function)#Placeholder later actual function derived from pointvalues in modulusmodel
@@ -101,7 +117,7 @@ def run(cfg: ModulusConfig):
             domain = Domain()
             solver = Solver(cfg=cfg, domain=domain)
             _, t_coupling, n = precice.retrieve_checkpoint()
-            coupled_boundary_expression = [] #TODO only remove n_diff last entries -> timeframe capable
+            coupled_boundary_expressions = [] #TODO only remove n_diff last entries -> timeframe capable
 
         else:
             t_coupling += dt
