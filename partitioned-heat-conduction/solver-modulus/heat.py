@@ -25,59 +25,65 @@ class StraightBoundary(SubDomain):
             return False
         
 class HeatPDE(PDE):
-        def __init__(self, alpha, beta):
-                x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
-                input_variables = {"x": x, "y": y, "t": t}
-                u = Function("u")(*input_variables)
-                u_x = Function("u_x")(*input_variables)
+    def __init__(self, alpha, beta):
+            x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
+            input_variables = {"x": x, "y": y, "t": t}
+            u = Function("u")(*input_variables)
+            u_x = Function("u_x")(*input_variables)
 
-                self.equations = {}
-                self.equations["heat_equation"] = u.diff(t) - (u.diff(x,2)+u.diff(y,2)) - (beta-2-2*alpha)/10
-                self.equations["flux_x"] = u.diff(x) - u_x       
+            self.equations = {}
+            self.equations["heat_equation"] = u.diff(t) - (u.diff(x,2)+u.diff(y,2)) - (beta-2-2*alpha)/10
+            self.equations["flux_x"] = u.diff(x) - u_x 
 
-def train_model(model, cfg, end_time, coupled_boundary_expressions, alpha, beta):
-    time_range = {0.0, end_time}
-    tolerance = 1e-5
-    x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
+class Modulus_Helper():
+    def __init__(self, model, cfg, alpha, beta):
+        self.alpha = alpha 
+        self.beta = beta
 
-    geometry = Rectangle((0,0),(1,1))
-    equation = HeatPDE(alpha, beta)
-    nodes = equation.make_nodes() + [model.make_node("u_network")]
+        self.cfg = cfg
+        self.model = model
+        self.geometry = Rectangle((0,0),(1,1))
+        self.nodes = HeatPDE(alpha, beta).make_nodes() + [model.make_node("u_network")]
 
-    initial_condition = PointwiseInteriorConstraint(
-        nodes = nodes,
-        geometry = geometry,
-        outvar = {"u": ((1+x*x+y*y*alpha)/10)},
-        batch_size = 1_000,
-        parameterization = {t: 0.0}
-    )
+    def train_model(self, end_time, coupled_boundary_expressions):
+        tolerance = 1e-5
+        x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
+        time_range = {t: (0.0, end_time)}
 
-    interior_constraint = PointwiseInteriorConstraint(
-        nodes = nodes,
-        geometry = geometry,
-        outvar = {"custom_equation": 0, "custom_gradient_x": 0},
-        batch_size = 5_000,
-        parameterization=time_range
-    )
+        initial_condition = PointwiseInteriorConstraint(
+            nodes = self.nodes,
+            geometry = self.geometry,
+            outvar = {"u": ((1+x*x+y*y*self.alpha)/10)},
+            batch_size = 1_000,
+            parameterization = {t: 0.0}
+        )
 
-    boundary_condition = PointwiseBoundaryConstraint(
-        nodes = nodes,
-        geometry = geometry,
-        outvar = {"u": ((1+x*x+y*y*alpha)/10)},
-        batch_size = 1_000,
-        criteria=x<1.0-tolerance,
-        parameterization=time_range,
-    )
+        interior_constraint = PointwiseInteriorConstraint(
+            nodes = self.nodes,
+            geometry = self.geometry,
+            outvar = {"heat_equation": 0, "flux_x": 0},
+            batch_size = 5_000,
+            parameterization=time_range
+        )
 
-    #TODO add coupling boundary condition
+        boundary_condition = PointwiseBoundaryConstraint(
+            nodes = self.nodes,
+            geometry = self.geometry,
+            outvar = {"u": ((1+x*x+y*y*self.alpha+t*self.beta)/10)},
+            batch_size = 1_000,
+            criteria=x<1.0-tolerance,
+            parameterization=time_range,
+        )
 
-    domain = Domain()
-    domain.add_constraint(initial_condition)
-    domain.add_constraint(interior_constraint)
-    domain.add_constraint(boundary_condition)
+        #TODO add coupling boundary condition
 
-    solver = Solver(cfg=cfg, domain=domain)
-    solver.solve()
+        domain = Domain()
+        domain.add_constraint(initial_condition)
+        domain.add_constraint(interior_constraint)
+        domain.add_constraint(boundary_condition)
+
+        solver = Solver(cfg=self.cfg, domain=domain)
+        solver.solve()
 
 
 
@@ -98,7 +104,8 @@ def run(cfg: ModulusConfig):
         layer_size = 128,
         nr_layers = 4,
     )
-    train_model(u_net, cfg, 0.0, coupled_boundary_expressions, alpha, beta)
+    modulus = Modulus_Helper(u_net, cfg, alpha, beta)
+    modulus.train_model(0.0, coupled_boundary_expressions)
     
     while precice.is_coupling_ongoing():
         if precice.requires_writing_checkpoint():
@@ -115,9 +122,7 @@ def run(cfg: ModulusConfig):
 
         
         if precice.requires_reading_checkpoint():
-            #TODO train model
-            domain = Domain()
-            solver = Solver(cfg=cfg, domain=domain)
+            modulus.train_model(t_coupling+dt, coupled_boundary_expressions)
             _, t_coupling, n = precice.retrieve_checkpoint()
             coupled_boundary_expressions = [] #TODO only remove n_diff last entries -> timeframe capable
 
