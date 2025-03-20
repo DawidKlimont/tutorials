@@ -44,6 +44,7 @@ class Modulus_Helper():
         self.cfg = cfg
         self.steps_per_iter = self.cfg.training.max_steps
         self.cfg.training.max_steps = 0
+        self.total_steps = 0
 
         self.model = model
         self.geometry = Rectangle((0,0),(1,1))
@@ -51,6 +52,9 @@ class Modulus_Helper():
 
     def train_model(self, end_time, coupled_boundary_expressions):
         self.cfg.training.max_steps+=self.steps_per_iter
+        if self.total_steps>=self.cfg.training.max_steps:
+            return
+        
         tolerance = 1e-5
         x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
         time_range = {t: (0.0, end_time)}
@@ -87,7 +91,7 @@ class Modulus_Helper():
                     nodes = self.nodes,
                     geometry = self.geometry,
                     outvar = {"u": lambda x,y,t: expression(x,y)/10},
-                    batch_size = 100,
+                    batch_size = 10,
                     criteria=x>1.0-tolerance,
                     parameterization={t: t_expr},
                 )
@@ -102,7 +106,7 @@ class Modulus_Helper():
 
         solver = Solver(cfg=self.cfg, domain=domain)
         solver.solve()
-
+        self.total_steps = solver.load_step()
 
 
 @modulus.sym.main(config_path="conf", config_name="config")
@@ -133,7 +137,7 @@ def run(cfg: ModulusConfig):
         precice.update_coupling_expression(coupling_expression, read_data)
         coupled_boundary_expressions.append( (t_coupling+dt, vectorize(coupling_expression)) )
 
-        u_net.eval()
+        
 
         inputs = precice._owned_vertices.get_coordinates()
         input_dict = {
@@ -141,9 +145,10 @@ def run(cfg: ModulusConfig):
            "y": torch.tensor([y for _,y in inputs], dtype=torch.float32, device="cuda").unsqueeze(-1),
            "t": torch.tensor([t_coupling+dt for _ in inputs], dtype=torch.float32, device="cuda").unsqueeze(-1)
         }
-
+        u_net.eval()
         output = u_net(input_dict)["u_x"].squeeze().detach().cpu().numpy()*10
-        print(output)
+        u_net.train()
+
         precice._participant.write_data(
             precice._config.get_coupling_mesh_name(),
             precice._config.get_write_data_name(),
