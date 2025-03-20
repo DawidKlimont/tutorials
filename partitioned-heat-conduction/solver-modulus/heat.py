@@ -5,6 +5,7 @@ from modulus.sym.solver import Solver
 from fenicsprecice import Adapter
 from fenics import SubDomain, near, Point, RectangleMesh, FunctionSpace, VectorFunctionSpace, interpolate, Expression
 
+import torch
 from numpy import vectorize
 from sympy import Symbol, Function
 
@@ -133,7 +134,7 @@ def run(cfg: ModulusConfig):
         coupled_boundary_expressions.append( (t_coupling+dt, vectorize(coupling_expression)) )
 
         u_net.eval()
-        
+
         inputs = precice._owned_vertices.get_coordinates()
         input_dict = {
            "x": torch.tensor([x for x,_ in inputs], dtype=torch.float32, device="cuda").unsqueeze(-1),
