@@ -161,7 +161,7 @@ def run(cfg: ModulusConfig):
         if precice.requires_reading_checkpoint():
             modulus.train_model(t_coupling+dt, coupled_boundary_expressions)
             _, t_coupling, n = precice.retrieve_checkpoint()
-            coupled_boundary_expressions = [] #TODO only remove n_diff last entries -> timeframe capable
+            coupled_boundary_expressions = coupled_boundary_expressions[:n]
 
         else:
             t_coupling += dt
