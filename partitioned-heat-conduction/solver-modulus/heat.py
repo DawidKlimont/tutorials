@@ -107,7 +107,7 @@ class Modulus_Helper():
 @modulus.sym.main(config_path="conf", config_name="config")
 def run(cfg: ModulusConfig):
 
-    dt = 0.1
+    dt = 0.01
     t_coupling = 0.0
     n = 0
     alpha = 3
@@ -132,10 +132,24 @@ def run(cfg: ModulusConfig):
         precice.update_coupling_expression(coupling_expression, read_data)
         coupled_boundary_expressions.append( (t_coupling+dt, vectorize(coupling_expression)) )
 
+        u_net.eval()
+        
+        inputs = precice._owned_vertices.get_coordinates()
+        input_dict = {
+           "x": torch.tensor([x for x,_ in inputs], dtype=torch.float32, device="cuda").unsqueeze(-1),
+           "y": torch.tensor([y for _,y in inputs], dtype=torch.float32, device="cuda").unsqueeze(-1),
+           "t": torch.tensor([t_coupling+dt for _ in inputs], dtype=torch.float32, device="cuda").unsqueeze(-1)
+        }
 
-        precice.write_data(f_N_function)#Placeholder later actual function derived from pointvalues in modulusmodel
+        output = u_net(input_dict)["u_x"].squeeze().detach().cpu().numpy()*10
+        print(output)
+        precice._participant.write_data(
+            precice._config.get_coupling_mesh_name(),
+            precice._config.get_write_data_name(),
+            precice._precice_vertex_ids,
+            output
+        )
         precice.advance(dt)
-        #TODO write actual model data
 
         
         if precice.requires_reading_checkpoint():
