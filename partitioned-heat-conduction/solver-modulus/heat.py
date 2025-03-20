@@ -26,20 +26,21 @@ class StraightBoundary(SubDomain):
             return False
         
 class HeatPDE(PDE):
-    def __init__(self, alpha, beta):
+    def __init__(self, alpha, beta, scaling):
             x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
             input_variables = {"x": x, "y": y, "t": t}
             u = Function("u")(*input_variables)
             u_x = Function("u_x")(*input_variables)
 
             self.equations = {}
-            self.equations["heat_equation"] = u.diff(t) - (u.diff(x,2)+u.diff(y,2)) - (beta-2-2*alpha)/10
+            self.equations["heat_equation"] = u.diff(t) - (u.diff(x,2)+u.diff(y,2)) - (beta-2-2*alpha)/scaling
             self.equations["flux_x"] = u.diff(x) - u_x 
 
 class Modulus_Helper():
-    def __init__(self, model, cfg, alpha, beta):
+    def __init__(self, model, cfg, alpha, beta, scaling):
         self.alpha = alpha 
         self.beta = beta
+        self.scaling = scaling
 
         self.cfg = cfg
         self.steps_per_iter = self.cfg.training.max_steps
@@ -48,7 +49,7 @@ class Modulus_Helper():
 
         self.model = model
         self.geometry = Rectangle((0,0),(1,1))
-        self.nodes = HeatPDE(alpha, beta).make_nodes() + [model.make_node("u_network")]
+        self.nodes = HeatPDE(alpha, beta, scaling).make_nodes() + [model.make_node("u_network")]
 
     def train_model(self, end_time, coupled_boundary_expressions):
         self.cfg.training.max_steps+=self.steps_per_iter
@@ -62,7 +63,7 @@ class Modulus_Helper():
         initial_condition = PointwiseInteriorConstraint(
             nodes = self.nodes,
             geometry = self.geometry,
-            outvar = {"u": ((1+x*x+y*y*self.alpha)/10)},
+            outvar = {"u": ((1+x*x+y*y*self.alpha)/self.scaling)},
             batch_size = 1_000,
             parameterization = {t: 0.0}
         )
@@ -78,7 +79,7 @@ class Modulus_Helper():
         boundary_condition = PointwiseBoundaryConstraint(
             nodes = self.nodes,
             geometry = self.geometry,
-            outvar = {"u": ((1+x*x+y*y*self.alpha+t*self.beta)/10)},
+            outvar = {"u": ((1+x*x+y*y*self.alpha+t*self.beta)/self.scaling)},
             batch_size = 1_000,
             criteria=x<1.0-tolerance,
             parameterization=time_range,
@@ -90,7 +91,7 @@ class Modulus_Helper():
                 PointwiseBoundaryConstraint(
                     nodes = self.nodes,
                     geometry = self.geometry,
-                    outvar = {"u": lambda x,y,t: expression(x,y)/10},
+                    outvar = {"u": lambda x,y,t: expression(x,y)/self.scaling},
                     batch_size = 10,
                     criteria=x>1.0-tolerance,
                     parameterization={t: t_expr},
@@ -117,16 +118,17 @@ def run(cfg: ModulusConfig):
     n = 0
     alpha = 3
     beta = 1.2
+    scaling = 10
     coupled_boundary_expressions = []
 
-    #init model and initial training
+    #init model and initial training also loads pre trained model if in output folder
     u_net = FullyConnectedArch(
         input_keys = [Key("x"), Key("y"), Key("t")],
         output_keys = [Key("u"), Key("u_x")],
         layer_size = 128,
         nr_layers = 4,
     )
-    modulus = Modulus_Helper(u_net, cfg, alpha, beta)
+    modulus = Modulus_Helper(u_net, cfg, alpha, beta, scaling)
     modulus.train_model(0.0, coupled_boundary_expressions)
     
     while precice.is_coupling_ongoing():
@@ -146,7 +148,7 @@ def run(cfg: ModulusConfig):
            "t": torch.tensor([t_coupling+dt for _ in inputs], dtype=torch.float32, device="cuda").unsqueeze(-1)
         }
         u_net.eval()
-        output = u_net(input_dict)["u_x"].squeeze().detach().cpu().numpy()*10
+        output = u_net(input_dict)["u_x"].squeeze().detach().cpu().numpy()*scaling
         u_net.train()
 
         precice._participant.write_data(
