@@ -17,20 +17,21 @@ import modulus
 import torch
 
 class HeatEquation2D(PDE):
-    def __init__(self, alpha, beta, scaling):
-        x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
-        input_variables = {"x": x, "y": y, "t": t}
-        u = Function("u")(*input_variables)
-        self.equations = {}
-        self.equations["heat_equation"] = u.diff(t) -(u.diff(x,2)+u.diff(y,2)) -(beta-2-2*alpha)/scaling
+	def __init__(self, alpha, beta, scaling):
+		x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
+		input_variables = {"x": x, "y": y, "t": t}
+		u = Function("u")(*input_variables)
+		self.equations = {}
+		self.equations["heat_equation"] = u.diff(t) -(u.diff(x,2)+u.diff(y,2)) -(beta-2-2*alpha)/scaling
 
 class CustomPlotter(ValidatorPlotter):
-    def __call__(self, invar, true_outvar, pred_outvar):
-        invar_subset = {"x": invar["x"],"y": invar["y"]}
-        return super().__call__(invar_subset, true_outvar, pred_outvar)
+	def __call__(self, invar, true_outvar, pred_outvar):
+		invar_subset = {"x": invar["x"],"y": invar["y"]}
+		true_outvar["u"]=true_outvar["u"]*10
+		pred_outvar["u"]=pred_outvar["u"]*10
+		return super().__call__(invar_subset, true_outvar, pred_outvar)
     
 def initialize_neural_network():
-	#neural network initialize
 	u_net = FullyConnectedArch(
 		input_keys = [Key("x"), Key("y"), Key("t")],
 		output_keys = [Key("u")],		
@@ -47,7 +48,6 @@ def initialize_nodes_and_geometry(u_net, alpha, beta, scaling):
 	return nodes, geometry
 
 def initialize_constraints(nodes, geometry, alpha, beta, scaling):
-	constraints = []
 	x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
 	time_range = {t: (0.0,1.0)}
 
@@ -57,7 +57,7 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 		outvar = {"u": (1 + x*x + alpha*y*y)/(scaling)},
 		batch_size = 1_000,
 		parameterization = {t: 0.0},
-		fixed_dataset  = False
+		fixed_dataset = False
 	)
 
 	boundary_condition = PointwiseBoundaryConstraint(
@@ -66,7 +66,7 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 		outvar = {"u": (1 + x*x + alpha*y*y + beta*t)/(scaling)},
 		batch_size = 1_000,	
 		parameterization=time_range,
-		fixed_dataset  = False
+		fixed_dataset = False
 	)
       
 	interior_constraint = PointwiseInteriorConstraint(
@@ -74,17 +74,17 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 		geometry = geometry,
 		outvar = {"heat_equation": 0},
 		batch_size = 10_000,
-		parameterization=time_range,
-		fixed_dataset  = False
+		parameterization = time_range,
+		fixed_dataset = False
 	)
 
+	constraints = []
 	constraints.append(initial_condition)
 	constraints.append(boundary_condition)
 	constraints.append(interior_constraint)
 	return constraints
 
 def initialize_validator(nodes, alpha, beta, scaling):
-	validators = []
 	c, t = 1000, 1.0 
 	X, Y = torch.meshgrid(torch.linspace(0, 1, c), torch.linspace(0, 1, c), indexing="ij")
 	invar = {"x": X.reshape(-1, 1), "y": Y.reshape(-1, 1), "t": torch.ones(c*c, 1)*t}
@@ -93,19 +93,16 @@ def initialize_validator(nodes, alpha, beta, scaling):
 		invar = invar,
 		true_outvar = outvar,
 		nodes = nodes,
-		batch_size=c*c,
-		plotter=CustomPlotter(),
+		batch_size = c*c,
+		plotter = CustomPlotter(),
 	)
-	validators.append(validator)
-	return validators
+	return validator
 
-def initialize_domain(constraints, validators):
+def initialize_domain(constraints, validator):
 	domain = Domain()		
 	for constraint in constraints:
 		domain.add_constraint(constraint)
-	for validator in validators:
-		domain.add_validator(validator)
-	return domain
+	domain.add_validator(validator)
 
 def train_model(domain, cfg):
 	solver = Solver(cfg=cfg, domain=domain)
@@ -114,15 +111,13 @@ def train_model(domain, cfg):
 @modulus.sym.main(config_path="conf", config_name="config")
 def run(cfg: ModulusConfig):
      
-	alpha = 3.0
-	beta = 1.2
-	scaling = 10.0
+	alpha, beta, scaling = 3.0, 1.2, 10.0
 
 	u_net = initialize_neural_network()
 	nodes, geometry = initialize_nodes_and_geometry(u_net, alpha, beta, scaling)
 	constraints = initialize_constraints(nodes, geometry, alpha, beta, scaling)
-	validators = initialize_validator(nodes, alpha, beta, scaling)
-	domain = initialize_domain(constraints, validators)
+	validator = initialize_validator(nodes, alpha, beta, scaling)
+	domain = initialize_domain(constraints, validator)
 	train_model(domain, cfg)
 		
 run()
