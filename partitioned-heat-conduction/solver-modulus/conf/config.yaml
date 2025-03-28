@@ -11,6 +11,8 @@ scheduler:
   decay_steps: 10_000
 
 training:
-  rec_results_freq : 100
-  max_steps : 1_000 # count of training steps we will use per time frame iteration
-  save_network_freq : 1_000 # saving should be done after every time frame -> should equal max steps to save at the end of every timeframe
+  summary_freq : 100
+  rec_results_freq : 1_000
+  max_steps : 1_000
+  save_network_freq : 1_000 
+  rec_validation_freq : 10_000

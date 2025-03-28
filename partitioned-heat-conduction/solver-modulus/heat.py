@@ -116,7 +116,7 @@ class ModulusHelper():
                 self.domain.add_constraint(constraint)
 
 
-        c = 1000
+        c = 100
         x_vals = torch.linspace(0, 1, c)
         y_vals = torch.linspace(0, 1, c)
         X, Y = torch.meshgrid(x_vals, y_vals, indexing="ij")
