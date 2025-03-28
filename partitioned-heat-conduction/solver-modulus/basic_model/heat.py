@@ -40,7 +40,7 @@ def initialize_neural_network():
 	)
 	return u_net
 
-def initialize_geometry_and_nodes(u_net, alpha, beta, scaling):
+def initialize_nodes_and_geometry(u_net, alpha, beta, scaling):
 	geometry = Rectangle((0,0),(1,1))
 	eq = HeatEquation2D(alpha, beta, scaling)
 	nodes = eq.make_nodes() + [u_net.make_node("u_network")]
@@ -83,7 +83,7 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 	constraints.append(interior_constraint)
 	return constraints
 
-def initialize_validator(alpha, beta, scaling, nodes):
+def initialize_validator(nodes, alpha, beta, scaling):
 	validators = []
 	c, t = 10, 1.0 
 	X, Y = torch.meshgrid(torch.linspace(0, 1, c), torch.linspace(0, 1, c), indexing="ij")
@@ -119,7 +119,7 @@ def run(cfg: ModulusConfig):
 	scaling = 10.0
 
 	u_net = initialize_neural_network()
-	geometry, nodes = initialize_geometry_and_nodes(u_net, alpha, beta, scaling)
+	nodes, geometry = initialize_nodes_and_geometry(u_net, alpha, beta, scaling)
 	constraints = initialize_constraints(nodes, geometry, alpha, beta, scaling)
 	validators = initialize_validator(nodes, alpha, beta, scaling)
 	domain = initialize_domain(constraints, validators)

@@ -11,6 +11,8 @@ scheduler:
 
 training:
   rec_results_freq : 1_000
+  save_network_freq : 1_000
   rec_validation_freq : 10_000
   max_steps : 100_000
+  summary_freq : 100
 
