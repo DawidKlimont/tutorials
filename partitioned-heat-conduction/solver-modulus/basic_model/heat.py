@@ -29,6 +29,9 @@ class CustomPlotter(ValidatorPlotter):
 		invar_subset = {"x": invar["x"],"y": invar["y"]}
 		true_outvar["u"]=true_outvar["u"]*10
 		pred_outvar["u"]=pred_outvar["u"]*10
+
+		print(pred_outvar)
+		print(true_outvar)
 		return super().__call__(invar_subset, true_outvar, pred_outvar)
     
 def initialize_neural_network():
@@ -85,7 +88,7 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 	return constraints
 
 def initialize_validator(nodes, alpha, beta, scaling):
-	c, t = 1000, 1.0 
+	c, t = 10, 1.0 
 	X, Y = torch.meshgrid(torch.linspace(0, 1, c), torch.linspace(0, 1, c), indexing="ij")
 	invar = {"x": X.reshape(-1, 1), "y": Y.reshape(-1, 1), "t": torch.ones(c*c, 1)*t}
 	outvar = {"u": (1+invar["x"]*invar["x"]+alpha*invar["y"]*invar["y"]+beta*invar["t"])/scaling}
@@ -103,6 +106,7 @@ def initialize_domain(constraints, validator):
 	for constraint in constraints:
 		domain.add_constraint(constraint)
 	domain.add_validator(validator)
+	return domain
 
 def train_model(domain, cfg):
 	solver = Solver(cfg=cfg, domain=domain)
