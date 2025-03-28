@@ -18,25 +18,15 @@ import torch
 
 class HeatEquation2D(PDE):
     def __init__(self, alpha, beta, scaling):
-
-        #equation declaration
-        x = Symbol("x")
-        y = Symbol("y")
-        t = Symbol("t")
-
+        x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
         input_variables = {"x": x, "y": y, "t": t}
-
         u = Function("u")(*input_variables)
-
         self.equations = {}
         self.equations["heat_equation"] = u.diff(t) -(u.diff(x,2)+u.diff(y,2)) -(beta-2-2*alpha)/scaling
 
 class CustomPlotter(ValidatorPlotter):
     def __call__(self, invar, true_outvar, pred_outvar):
-        invar_subset = {
-            "x": invar["x"],
-            "y": invar["y"]
-        }
+        invar_subset = {"x": invar["x"],"y": invar["y"]}
         return super().__call__(invar_subset, true_outvar, pred_outvar)
     
 def initialize_neural_network():
@@ -50,14 +40,10 @@ def initialize_neural_network():
 	)
 	return u_net
 
-def initialize_geometry_and_nodes(alpha, beta, scaling, u_net):
-	#geometry declaration
+def initialize_geometry_and_nodes(u_net, alpha, beta, scaling):
 	geometry = Rectangle((0,0),(1,1))
-
-	#equation declaration
 	eq = HeatEquation2D(alpha, beta, scaling)
 	nodes = eq.make_nodes() + [u_net.make_node("u_network")]
-
 	return nodes, geometry
 
 def initialize_constraints(nodes, geometry, alpha, beta, scaling):
@@ -73,7 +59,6 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 		parameterization = {t: 0.0},
 		fixed_dataset  = False
 	)
-	constraints.append(initial_condition)
 
 	boundary_condition = PointwiseBoundaryConstraint(
 		nodes = nodes,
@@ -83,7 +68,6 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 		parameterization=time_range,
 		fixed_dataset  = False
 	)
-	constraints.append(boundary_condition)
       
 	interior_constraint = PointwiseInteriorConstraint(
 		nodes = nodes,
@@ -93,23 +77,18 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 		parameterization=time_range,
 		fixed_dataset  = False
 	)
-	constraints.append(interior_constraint)
 
+	constraints.append(initial_condition)
+	constraints.append(boundary_condition)
+	constraints.append(interior_constraint)
 	return constraints
 
 def initialize_validator(alpha, beta, scaling, nodes):
 	validators = []
-	c = 10 
+	c, t = 10, 1.0 
 	X, Y = torch.meshgrid(torch.linspace(0, 1, c), torch.linspace(0, 1, c), indexing="ij")
-	X, Y = X.reshape(-1, 1), Y.reshape(-1, 1)
-	invar = {
-		"x": X,
-		"y": Y,
-		"t": torch.ones(c*c, 1)*1.0
-	}
-	outvar = {
-		"u": (1+invar["x"]*invar["x"]+alpha*invar["y"]*invar["y"]+beta*invar["t"])/scaling
-	}
+	invar = {"x": X.reshape(-1, 1), "y": Y.reshape(-1, 1), "t": torch.ones(c*c, 1)*t}
+	outvar = {"u": (1+invar["x"]*invar["x"]+alpha*invar["y"]*invar["y"]+beta*invar["t"])/scaling}
 	validator = PointwiseValidator(
 		invar = invar,
 		true_outvar = outvar,
@@ -140,9 +119,9 @@ def run(cfg: ModulusConfig):
 	scaling = 10.0
 
 	u_net = initialize_neural_network()
-	geometry, nodes = initialize_geometry_and_nodes(alpha, beta, scaling, u_net)
+	geometry, nodes = initialize_geometry_and_nodes(u_net, alpha, beta, scaling)
 	constraints = initialize_constraints(nodes, geometry, alpha, beta, scaling)
-	validators = initialize_validator(alpha, beta, scaling, nodes)
+	validators = initialize_validator(nodes, alpha, beta, scaling)
 	domain = initialize_domain(constraints, validators)
 	train_model(domain, cfg)
 		
