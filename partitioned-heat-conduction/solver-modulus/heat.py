@@ -60,6 +60,7 @@ class ModulusHelper():
         self.solver = Solver(cfg=self.cfg, domain=self.domain)
 
     def train_model(self, end_time, coupled_boundary_expressions,  initial=False):
+        self.cfg.training.max_steps+= self.steps_per_iter
         if self.total_steps>=self.cfg.training.max_steps:
             return
         
@@ -138,7 +139,7 @@ class ModulusHelper():
         self.domain.add_validator(validator)
 
 
-        self.solver.max_steps+=self.steps_per_iter
+        self.solver.max_steps=self.cfg.training.max_steps
         self.solver.solve()
         self.total_steps = self.solver.load_step()
 
@@ -181,6 +182,7 @@ def run(cfg: ModulusConfig):
         layer_size = 128,
         nr_layers = 7,
     )
+    u_net.to("cuda")
     modulus = ModulusHelper(u_net, cfg, alpha, beta, scaling)
     modulus.train_model(0.0, coupled_boundary_expressions, initial=True)
 
