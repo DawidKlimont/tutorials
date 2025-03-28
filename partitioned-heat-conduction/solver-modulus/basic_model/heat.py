@@ -85,7 +85,7 @@ def initialize_constraints(nodes, geometry, alpha, beta, scaling):
 
 def initialize_validator(nodes, alpha, beta, scaling):
 	validators = []
-	c, t = 10, 1.0 
+	c, t = 1000, 1.0 
 	X, Y = torch.meshgrid(torch.linspace(0, 1, c), torch.linspace(0, 1, c), indexing="ij")
 	invar = {"x": X.reshape(-1, 1), "y": Y.reshape(-1, 1), "t": torch.ones(c*c, 1)*t}
 	outvar = {"u": (1+invar["x"]*invar["x"]+alpha*invar["y"]*invar["y"]+beta*invar["t"])/scaling}
