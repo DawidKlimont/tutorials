@@ -190,7 +190,7 @@ def run(cfg: ModulusConfig):
 
         read(dt)
         coupled_boundary_expressions.append( (t_coupling+dt, vectorize(coupling_expression)) )
-        write(u_net, dt, t_coupling)
+        write(u_net, dt, t_coupling, u_net)
 
         if precice.requires_reading_checkpoint():
             modulus.train_model(t_coupling+dt, coupled_boundary_expressions)
