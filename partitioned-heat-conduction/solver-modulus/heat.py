@@ -154,8 +154,8 @@ def write(u_net, dt, t_coupling):
         "t": torch.tensor([[t_coupling+dt] for _ in inputs], dtype=torch.float32, device="cuda", requires_grad=True) 
     }
     u_net.eval()
-    res = u_net(input_dict)
-    res["u"].backward(torch.tensor([[1.] for _ in res["u"]], dtype=torch.float32, device="cuda"))
+    res = u_net(input_dict)["u"]
+    res.backward(torch.tensor([[1.] for _ in res], dtype=torch.float32, device="cuda"))
     output = input_dict["x"].grad.squeeze().detach().cpu().numpy()*10
     u_net.train()
     
