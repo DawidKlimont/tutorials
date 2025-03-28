@@ -56,7 +56,7 @@ class Modulus_Helper():
         if self.total_steps>=self.cfg.training.max_steps:
             return
         
-        tolerance = 1e-5
+        tolerance = 1e-10
         x,y,t = Symbol("x"), Symbol("y"), Symbol("t")
         time_range = {t: (0.0, end_time)}
 
@@ -184,3 +184,8 @@ coupling_expression = precice.create_coupling_expression()
 print("Starting")
 run()
 print("Finished")
+
+
+# 1 timeframe + 10 iters + 100(very low total -> 1000) training steps per iter -> 5 mins of training
+# 1 timeframe + 100 iters ?->? 50 mins
+# 10 timeframes + 100 iters ?->? 500 mins <- 8 hours could do over night and then store on github

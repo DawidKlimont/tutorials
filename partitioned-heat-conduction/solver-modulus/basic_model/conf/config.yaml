@@ -1,0 +1,16 @@
+defaults:
+  - modulus_default
+  - scheduler: tf_exponential_lr
+  - optimizer: adam
+  - loss: sum
+  - _self_
+
+scheduler:
+  decay_rate: 0.90
+  decay_steps: 2_000
+
+training:
+  rec_results_freq : 1_000
+  rec_validation_freq : 10_000
+  max_steps : 100_000
+
